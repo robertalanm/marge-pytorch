@@ -10,9 +10,14 @@ from torch.utils.data import Dataset, DataLoader
 from torch import nn, einsum
 import torch.nn.functional as F
 
+import torch_xla
+import torch_xla.core.xla_model as xm
+
 from marge_pytorch.autoregressive_wrapper import AutoregressiveWrapper
 
 # helpers
+
+
 
 def identity(x, *args, **kwargs):
     return x
@@ -92,7 +97,8 @@ class SelfAttention(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, mask = None):
-        _, n, _, h, device = *x.shape, self.heads, x.device
+        _, n, _, h = *x.shape, self.heads
+        device = xm.xla_device()
         qkv = self.to_qkv(x)
         q, k, v = rearrange(qkv, 'b n (qkv h d) -> qkv b h n d', h = h, qkv = 3)
         dots = einsum('bhid,bhjd->bhij', q, k) * self.scale
@@ -129,7 +135,8 @@ class CrossAttention(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, context, doc_similarities, mask = None, context_mask = None):
-        b, n, _, h, device = *x.shape, self.heads, x.device
+        b, n, _, h = *x.shape, self.heads
+        device = xm.xla_device()
 
         q = self.to_q(x)
         q = rearrange(q, 'b n (h d) -> b h n d', h = h)
@@ -204,7 +211,7 @@ class Encoder(nn.Module):
             x = ff(x) + x
 
         cls_tokens = x[:, 0]
-        
+
         if return_embed_only:
             return cls_tokens, None
 
@@ -265,7 +272,8 @@ class TransformerWrapper(nn.Module):
         self.to_logits = nn.Linear(dim, num_tokens) if return_logits else identity
 
     def forward(self, x, *args, **kwargs):
-        b, n, device = *x.shape, x.device
+        b, n = *x.shape
+        device = xm.xla_device()
 
         x = self.token_emb(x)
         x += self.pos_emb(torch.arange(n, device=device))
