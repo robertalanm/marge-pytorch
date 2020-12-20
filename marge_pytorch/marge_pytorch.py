@@ -97,7 +97,7 @@ class SelfAttention(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, mask = None):
-        _, n, _, h = *x.shape, self.heads
+        _, n, _, h = x.shape, self.heads
         device = xm.xla_device()
         qkv = self.to_qkv(x)
         q, k, v = rearrange(qkv, 'b n (qkv h d) -> qkv b h n d', h = h, qkv = 3)
@@ -135,7 +135,7 @@ class CrossAttention(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, context, doc_similarities, mask = None, context_mask = None):
-        b, n, _, h = *x.shape, self.heads
+        b, n, _, h = x.shape, self.heads
         device = xm.xla_device()
 
         q = self.to_q(x)
@@ -272,7 +272,7 @@ class TransformerWrapper(nn.Module):
         self.to_logits = nn.Linear(dim, num_tokens) if return_logits else identity
 
     def forward(self, x, *args, **kwargs):
-        b, n = *x.shape
+        b, n = x.shape
         device = xm.xla_device()
 
         x = self.token_emb(x)
